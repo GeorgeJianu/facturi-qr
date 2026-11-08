@@ -259,6 +259,27 @@ details[open] summary { margin-bottom: 10px; }
   dialog[open] { animation: sheet .22s ease-out; }
   @keyframes sheet { from { transform: translateY(40px); opacity: .4; } }
 }
+/* PIN lock */
+.top-actions { display: flex; gap: 8px; align-items: center; }
+.btn.icon { padding: 9px 11px; }
+.btn.icon svg { width: 16px; height: 16px; display: block; }
+body.locked .app, body.locked .fabbar, body.checking .app, body.checking .fabbar { visibility: hidden; }
+.gate { position: fixed; inset: 0; display: grid; place-content: center; color: var(--muted); text-align: center; padding: 24px; }
+.lock { position: fixed; inset: 0; z-index: 100; background: var(--paper); display: grid; place-content: center; justify-items: center; gap: 18px; text-align: center;
+  padding: max(24px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(24px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.lock h2 { font-size: 1.25rem; }
+.dots { display: flex; gap: 14px; min-height: 16px; }
+.dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--ink); }
+.dot.on { background: var(--ink); }
+.keys { display: grid; grid-template-columns: repeat(3, 72px); gap: 14px; }
+.key { width: 72px; height: 72px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); font-size: 1.5rem; font-weight: 600; cursor: pointer; font-variant-numeric: tabular-nums; }
+.key:active { background: var(--sunken); }
+.key.blank { visibility: hidden; }
+.key.del { font-size: 1rem; color: var(--muted); }
+.lockmsg { min-height: 1.4em; color: var(--bad); font-weight: 600; font-size: .92rem; }
+.linkbtn { border: 0; background: none; color: var(--muted); text-decoration: underline; cursor: pointer; font-size: .86rem; }
+.forgot { max-width: 34ch; color: var(--muted); font-size: .86rem; margin: 0; }
+@media (prefers-reduced-motion: no-preference) { .shake { animation: shake .32s; } @keyframes shake { 25% { transform: translateX(-8px); } 50% { transform: translateX(8px); } 75% { transform: translateX(-4px); } } }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 </style>
 
@@ -271,7 +292,10 @@ details[open] summary { margin-bottom: 10px; }
         <div class="sub" id="who">Facturi comune, plătite prin cod QR</div>
       </div>
     </div>
-    <button class="btn primary" id="addBtn" type="button">+ Adaugă factură</button>
+    <div class="top-actions">
+      <button class="btn icon" id="pinBtn" type="button" hidden aria-label="Cod PIN" title="Cod PIN"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></button>
+      <button class="btn primary" id="addBtn" type="button">+ Adaugă factură</button>
+    </div>
   </header>
 
   <div class="banner" id="banner" hidden></div>
@@ -299,6 +323,46 @@ details[open] summary { margin-bottom: 10px; }
   </div>
 </div>
 <div class="fabbar" id="fabbar"><button class="btn primary" type="button" id="fab">+ Adaugă factură</button></div>
+
+<div class="gate" id="gate" hidden>Se încarcă…</div>
+
+<div class="lock" id="lock" hidden role="dialog" aria-modal="true" aria-labelledby="lock-t">
+  <span class="cross" aria-hidden="true"></span>
+  <h2 id="lock-t">Introdu codul PIN</h2>
+  <div class="dots" id="dots" aria-live="polite"></div>
+  <div class="lockmsg" id="lockmsg"></div>
+  <div class="keys" id="keys">
+    <button class="key" type="button" data-k="1">1</button><button class="key" type="button" data-k="2">2</button><button class="key" type="button" data-k="3">3</button>
+    <button class="key" type="button" data-k="4">4</button><button class="key" type="button" data-k="5">5</button><button class="key" type="button" data-k="6">6</button>
+    <button class="key" type="button" data-k="7">7</button><button class="key" type="button" data-k="8">8</button><button class="key" type="button" data-k="9">9</button>
+    <span class="key blank"></span><button class="key" type="button" data-k="0">0</button><button class="key del" type="button" data-k="del" aria-label="Șterge o cifră">⌫</button>
+  </div>
+  <button class="linkbtn" type="button" id="forgotBtn">Ai uitat PIN-ul?</button>
+  <p class="forgot" id="forgotTxt" hidden>PIN-ul este salvat doar pentru contul tău. Ca să-l ștergi, deschide această aplicație într-o conversație cu Claude și cere-i să-ți șteargă codul PIN din Facturi QR.</p>
+</div>
+
+<dialog id="pinDlg" aria-labelledby="p-title">
+  <form class="dlg" id="pinForm" novalidate>
+    <div class="dlg-head">
+      <div><h2 id="p-title">Cod PIN</h2><div class="sub" id="p-sub">Blochează aplicația pe acest cont cu un cod de 4–6 cifre.</div></div>
+      <button class="x" type="button" data-close aria-label="Închide">×</button>
+    </div>
+    <div class="dlg-body">
+      <div class="grid">
+        <div class="f" id="p-cur-row"><label for="p-cur">PIN-ul actual</label><input id="p-cur" type="password" inputmode="numeric" autocomplete="off" maxlength="6"></div>
+        <div class="f s3"><label for="p-new">PIN nou</label><input id="p-new" type="password" inputmode="numeric" autocomplete="off" maxlength="6"></div>
+        <div class="f s3"><label for="p-new2">Repetă PIN-ul nou</label><input id="p-new2" type="password" inputmode="numeric" autocomplete="off" maxlength="6"></div>
+      </div>
+      <p class="sub" style="margin:0">Aplicația se blochează când o deschizi și după 5 minute de inactivitate. PIN-ul e doar al tău: ceilalți membri își setează propriul cod.</p>
+    </div>
+    <div class="dlg-foot">
+      <span class="formerr" id="pinerr"></span>
+      <button class="btn danger" type="button" id="pinRemove">Elimină PIN-ul</button>
+      <button class="btn" type="button" id="pinLockNow">Blochează acum</button>
+      <button class="btn primary" type="submit" id="pinSave">Salvează PIN-ul</button>
+    </div>
+  </form>
+</dialog>
 
 <!-- detail -->
 <dialog id="detail" aria-labelledby="d-title">
@@ -944,6 +1008,112 @@ $("#addBtn").addEventListener("click", () => openEditor(null));
 $("#fab").addEventListener("click", () => openEditor(null));
 $("#emptyAdd").addEventListener("click", () => openEditor(null));
 
+/* ---------- PIN lock (per person, stored in their private data/users/<id> space) ---------- */
+const IDLE_MS = 5 * 60 * 1000;
+const PIN = { doc: null, data: null, entry: "", fails: 0, until: 0 };
+const sGet = k => { try { return sessionStorage.getItem(k); } catch { return null; } };
+const sSet = (k, v) => { try { v == null ? sessionStorage.removeItem(k) : sessionStorage.setItem(k, v); } catch {} };
+const unlockKey = () => "fqr-unlocked-" + (S.uid || "");
+const hex = buf => [...new Uint8Array(buf)].map(x => x.toString(16).padStart(2, "0")).join("");
+const sha = async s => hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)));
+const hasPin = () => !!(PIN.data && PIN.data.pinHash);
+const isLocked = () => document.body.classList.contains("locked");
+const validPin = p => /^\d{4,6}$/.test(p);
+const pinMatches = async p => hasPin() && (await sha(PIN.data.pinSalt + p)) === PIN.data.pinHash;
+
+function drawDots() {
+  const n = hasPin() ? PIN.data.pinLen || 4 : 4;
+  $("#dots").innerHTML = Array.from({ length: n }, (_, i) => `<span class="dot${i < PIN.entry.length ? " on" : ""}"></span>`).join("");
+}
+function lockNow() {
+  if (!hasPin()) return;
+  document.querySelectorAll("dialog[open]").forEach(d => d.close());
+  document.body.classList.add("locked");
+  PIN.entry = ""; $("#lockmsg").textContent = ""; $("#forgotTxt").hidden = true; drawDots();
+  $("#lock").hidden = false; sSet(unlockKey(), null);
+}
+function unlockUI() {
+  document.body.classList.remove("locked");
+  $("#lock").hidden = true; sSet(unlockKey(), String(Date.now()));
+}
+function touchActivity() { if (hasPin() && !isLocked()) sSet(unlockKey(), String(Date.now())); }
+function idleCheck() { if (!hasPin() || isLocked()) return; const t = Number(sGet(unlockKey()) || 0); if (!t || Date.now() - t > IDLE_MS) lockNow(); }
+
+async function loadPin(db) {
+  PIN.doc = db.doc("data/users/" + S.uid + "/settings");
+  let snap;
+  try { snap = await Promise.race([PIN.doc.get(), new Promise((_, rej) => setTimeout(() => rej({ code: "timeout" }), 10000))]); }
+  catch (e) { if (e && e.code === "timeout") throw e; return; }
+  PIN.data = snap.exists ? snap.data() : null;
+  $("#pinBtn").hidden = false;
+  if (hasPin()) { const t = Number(sGet(unlockKey()) || 0); if (t && Date.now() - t < IDLE_MS) unlockUI(); else lockNow(); }
+}
+
+async function pinPress(k) {
+  if (!hasPin() || !isLocked()) return;
+  const msg = $("#lockmsg");
+  if (Date.now() < PIN.until) return;
+  if (k === "del") { PIN.entry = PIN.entry.slice(0, -1); drawDots(); return; }
+  if (PIN.entry.length >= PIN.data.pinLen) return;
+  PIN.entry += k; drawDots();
+  if (PIN.entry.length < PIN.data.pinLen) return;
+  const ok = await pinMatches(PIN.entry);
+  if (ok) { PIN.fails = 0; PIN.entry = ""; msg.textContent = ""; unlockUI(); return; }
+  PIN.fails++; PIN.entry = "";
+  const dots = $("#dots"); dots.classList.remove("shake"); void dots.offsetWidth; dots.classList.add("shake");
+  setTimeout(drawDots, 250);
+  if (PIN.fails >= 5) {
+    PIN.until = Date.now() + 30000; PIN.fails = 0;
+    const tick = () => { const s = Math.ceil((PIN.until - Date.now()) / 1000); if (s > 0) { msg.textContent = `Prea multe încercări. Așteaptă ${s} s.`; setTimeout(tick, 1000); } else msg.textContent = ""; };
+    tick();
+  } else msg.textContent = "Cod greșit. Încearcă din nou.";
+}
+$("#keys").addEventListener("click", e => { const b = e.target.closest("[data-k]"); if (b) pinPress(b.dataset.k); });
+document.addEventListener("keydown", e => {
+  if (!isLocked()) return;
+  if (/^\d$/.test(e.key)) { e.preventDefault(); pinPress(e.key); }
+  else if (e.key === "Backspace") { e.preventDefault(); pinPress("del"); }
+});
+$("#forgotBtn").addEventListener("click", () => { $("#forgotTxt").hidden = !$("#forgotTxt").hidden; });
+["pointerdown", "keydown"].forEach(ev => document.addEventListener(ev, touchActivity, { passive: true }));
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") idleCheck(); });
+setInterval(idleCheck, 30000);
+
+function openPinDlg() {
+  $("#pinForm").reset(); $("#pinerr").textContent = "";
+  const has = hasPin();
+  $("#p-cur-row").hidden = !has; $("#pinRemove").hidden = !has; $("#pinLockNow").hidden = !has;
+  $("#p-title").textContent = has ? "Schimbă codul PIN" : "Setează un cod PIN";
+  $("#pinSave").textContent = has ? "Schimbă PIN-ul" : "Salvează PIN-ul";
+  $("#pinDlg").showModal();
+  setTimeout(() => (has ? $("#p-cur") : $("#p-new")).focus(), 50);
+}
+function pinWriteFailed(e) {
+  $("#pinerr").textContent = e && e.code === "invalid_argument" ? "Contul tău nu poate salva setări aici. Ai nevoie de acces Contributor." : "PIN-ul nu s-a salvat. Verifică conexiunea și încearcă din nou.";
+}
+$("#pinBtn").addEventListener("click", openPinDlg);
+$("#pinLockNow").addEventListener("click", () => { $("#pinDlg").close(); lockNow(); });
+$("#pinForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const err = $("#pinerr"); err.textContent = "";
+  const cur = $("#p-cur").value.trim(), n1 = $("#p-new").value.trim(), n2 = $("#p-new2").value.trim();
+  if (hasPin() && !(await pinMatches(cur))) { err.textContent = "PIN-ul actual nu este corect."; $("#p-cur").focus(); return; }
+  if (!validPin(n1)) { err.textContent = "PIN-ul trebuie să aibă între 4 și 6 cifre."; $("#p-new").focus(); return; }
+  if (n1 !== n2) { err.textContent = "Cele două coduri nu sunt identice."; $("#p-new2").focus(); return; }
+  const salt = hex(crypto.getRandomValues(new Uint8Array(16)));
+  const data = { pinHash: await sha(salt + n1), pinSalt: salt, pinLen: n1.length, updatedAt: new Date().toISOString() };
+  const btn = $("#pinSave"); btn.disabled = true;
+  try { await PIN.doc.set(data); const had = hasPin(); PIN.data = data; unlockUI(); $("#pinDlg").close(); toast(had ? "Codul PIN a fost schimbat" : "Codul PIN a fost setat"); }
+  catch (ex) { pinWriteFailed(ex); }
+  btn.disabled = false;
+});
+$("#pinRemove").addEventListener("click", async () => {
+  const err = $("#pinerr"); err.textContent = "";
+  if (!(await pinMatches($("#p-cur").value.trim()))) { err.textContent = "Scrie PIN-ul actual ca să-l elimini."; $("#p-cur").focus(); return; }
+  try { await PIN.doc.delete(); PIN.data = null; sSet(unlockKey(), null); $("#pinDlg").close(); toast("Codul PIN a fost eliminat"); }
+  catch (ex) { pinWriteFailed(ex); }
+});
+
 function startExamples(msg) {
   S.mode = "example"; S.canWrite = true; showBanner(msg);
   store = memoryStore(exampleRows());
@@ -955,8 +1125,18 @@ async function boot() {
     startExamples("Mod de previzualizare: acestea sunt facturi de exemplu și nimic din ce modifici nu se salvează. Deschide pagina publicată în Claude ca să partajezi facturi reale.");
     return;
   }
+  document.body.classList.add("checking"); $("#gate").hidden = false;
+  const done = () => { document.body.classList.remove("checking"); $("#gate").hidden = true; };
   const [db, user, assets, downloads] = await Promise.all(["db", "user", "assets", "downloads"].map(n => window.claude.use(n).catch(() => null)));
   S.user = user; S.assets = assets; S.downloads = downloads;
+  if (db && user) {
+    try { S.uid = await user.id(); } catch {}
+    if (S.uid) {
+      try { await loadPin(db); }
+      catch { $("#gate").textContent = "Codul PIN nu a putut fi verificat. Verifică conexiunea și reîncarcă pagina."; return; }
+    }
+  }
+  done();
   if (!db) { startExamples("Conectează-te la Claude ca să vezi facturile comune. Până atunci vezi exemple și nimic nu se salvează."); return; }
   if (user) {
     try { S.uid = await user.id(); } catch {}
