@@ -26,6 +26,15 @@ Opened directly in a browser or from GitHub Pages, `window.claude` doesn't exist
 
 To use it with real data outside Claude, replace the `dbStore` and the asset upload calls in `index.html` with a backend such as Supabase or Firebase.
 
+## PIN lock
+
+Anyone can set an optional 4–6 digit PIN from the padlock button. The app then locks when it opens and after 5 minutes without use. After 5 wrong tries the keypad pauses for 30 seconds.
+
+- **Inside Claude**, each member's PIN is stored in their own private space (`data/users/<id>/settings`), so every member has their own code.
+- **Outside Claude**, the PIN is stored in the browser's `localStorage`, so it applies to that browser on that device only. Clearing the site's data removes it.
+
+The PIN is kept as a salted SHA-256 hash, never as the digits. It is a privacy screen for a device that's left unlocked, not access control. Who can open the app is decided by Claude's sharing settings, or by who can reach the page.
+
 ## QR-bill notes
 
 - Generated codes follow the Swiss Payment Standards QR-bill format version 2.0 (`SPC` / `0200`), with structured addresses (type `S`) and error correction level M.

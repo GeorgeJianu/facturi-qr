@@ -1039,8 +1039,17 @@ function unlockUI() {
 function touchActivity() { if (hasPin() && !isLocked()) sSet(unlockKey(), String(Date.now())); }
 function idleCheck() { if (!hasPin() || isLocked()) return; const t = Number(sGet(unlockKey()) || 0); if (!t || Date.now() - t > IDLE_MS) lockNow(); }
 
-async function loadPin(db) {
-  PIN.doc = db.doc("data/users/" + S.uid + "/settings");
+/* outside Claude (e.g. GitHub Pages) the PIN lives in this browser only */
+function localPinDoc() {
+  const K = "fqr-pin-local";
+  return {
+    async get() { let v = null; try { v = JSON.parse(localStorage.getItem(K) || "null"); } catch {} return { exists: !!v, data: () => v }; },
+    async set(d) { localStorage.setItem(K, JSON.stringify(d)); },
+    async delete() { localStorage.removeItem(K); }
+  };
+}
+async function loadPin(docRef) {
+  PIN.doc = docRef;
   let snap;
   try { snap = await Promise.race([PIN.doc.get(), new Promise((_, rej) => setTimeout(() => rej({ code: "timeout" }), 10000))]); }
   catch (e) { if (e && e.code === "timeout") throw e; return; }
@@ -1122,6 +1131,9 @@ function startExamples(msg) {
 async function boot() {
   render();
   if (!window.claude || typeof window.claude.use !== "function") {
+    S.uid = "local";
+    try { await loadPin(localPinDoc()); } catch {}
+    $("#forgotTxt").textContent = "Pe acest dispozitiv, PIN-ul e salvat doar în browser. Dacă l-ai uitat, șterge datele site-ului din setările browserului ca să-l elimini.";
     startExamples("Mod de previzualizare: acestea sunt facturi de exemplu și nimic din ce modifici nu se salvează. Deschide pagina publicată în Claude ca să partajezi facturi reale.");
     return;
   }
@@ -1132,7 +1144,7 @@ async function boot() {
   if (db && user) {
     try { S.uid = await user.id(); } catch {}
     if (S.uid) {
-      try { await loadPin(db); }
+      try { await loadPin(db.doc("data/users/" + S.uid + "/settings")); }
       catch { $("#gate").textContent = "Codul PIN nu a putut fi verificat. Verifică conexiunea și reîncarcă pagina."; return; }
     }
   }
