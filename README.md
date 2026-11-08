@@ -2,6 +2,8 @@
 
 A shared invoice book for Swiss QR-bills, with the interface in Romanian.
 
+**Try it:** https://georgejianu.github.io/facturi-qr/ (preview mode, example bills only)
+
 - Scan a photo, screenshot or PDF of a Swiss QR-bill. The creditor, IBAN, amount, reference and message are read from the QR code.
 - Check IBANs (including QR-IBANs), 27-digit QR references and RF creditor references.
 - Show each bill's payment slip with the Swiss QR code, so it can be paid by scanning it with a banking app.
